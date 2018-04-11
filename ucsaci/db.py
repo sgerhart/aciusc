@@ -30,7 +30,7 @@ def insertDB(conn, collection, cluster):
     return 0
 
 
-def get_clusterip(lgp_name):
+def get_clusterinfo(lgp_name):
 
     dbconn = dbconnect()
 
@@ -40,7 +40,7 @@ def get_clusterip(lgp_name):
 
         # ISSUE - This only will search for the FI A side (Should also search for FI B) - Both will return same cluster
         # id
-        test = collection.find({"lpganame": lgp_name },{'ip': 1, '_id': 0})
+        test = collection.find({"lpganame": lgp_name },{'ip': 1, 'members.node1.ip': 1,'members.node2.ip': 1, '_id': 0})
 
         for t in test:
 

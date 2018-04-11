@@ -15,39 +15,43 @@ from ucsm_build import clustermatrix
 # This class is used for refreshing the subscriptions
 class worker(threading.Thread):
 
-   def __init__(self, apic_ip, subscript_ids, token, uname, upwd):
+   def __init__(self, apic_ip, subscript_ids, token):
 
       threading.Thread.__init__(self)
       self.subids = subscript_ids
       self.apic_ip = apic_ip
       self.token = token
-      self.uname = uname
-      self.upwd = upwd
+      #self.uname = uname
+      #self.upwd = upwd
 
 
    def run(self):
 
-      refresh_subs(self.apic_ip, self.subids, self.token, self.uname, self.upwd)
+       # refresh_subs(self.apic_ip, self.subids, self.token, self.uname, self.upwd)
+
+       refresh_subs(self.apic_ip, self.subids, self.token)
 
 
 # This class is used for the getting the subscriptions - websocket
 class listener(threading.Thread):
 
-   def __init__(self, apic_ip, cookie):
+   def __init__(self, apic_ip, cookie,uname, upwd):
 
         threading.Thread.__init__(self)
         self.apic_ip = apic_ip
         self.cookie = cookie
         self.name = "Testing Listener"
+        self.uname = uname
+        self.upwd = upwd
 
    def run(self):
 
         # print "Starting " + self.name
-        get_subscription(self.apic_ip, self.cookie)
+        get_subscription(self.apic_ip, self.cookie, self.uname,self.upwd)
 
 
 # Used to refresh the subscriptions - Called by the worker thread
-def refresh_subs(apic_ip, subids, token, uname, upwd):
+def refresh_subs(apic_ip, subids, token):
 
     global refreshed_token
     global refreshed
@@ -68,12 +72,12 @@ def refresh_subs(apic_ip, subids, token, uname, upwd):
 
         if refreshed_token == '':
 
-            # print("Refreshing Subscriptions with Original Token")
+            print("Refreshing Subscriptions with Original Token")
             refresh_subscription(apic_ip, subids, token)
 
         else:
 
-            # print("Refreshing Subscriptions with Refreshed_Token")
+            print("Refreshing Subscriptions with Refreshed_Token")
             refresh_subscription(apic_ip, subids, refreshed_token)
 
         if min == 10:
@@ -104,7 +108,7 @@ def refresh_subs(apic_ip, subids, token, uname, upwd):
         # print(refreshed_token)
 
 # Opens up a websocket for subscription events (vpcIf, fabricLooseNode, fvRsDomAtt) This is called by the listener class
-def get_subscription(apic_ip, cookie):
+def get_subscription(apic_ip, cookie, uname, upwd):
 
         settest = set({})
 
@@ -114,8 +118,8 @@ def get_subscription(apic_ip, cookie):
 
         while True:
 
-            result = ws.recv()
-            result = json.loads(result)
+            event = ws.recv()
+            result = json.loads(event)
 
             for i in result['imdata']:
 
@@ -143,7 +147,7 @@ def get_subscription(apic_ip, cookie):
 
                     except Exception as e:
 
-                        print(e)
+                        # print(e)
 
                         pass
 
@@ -158,7 +162,7 @@ def get_subscription(apic_ip, cookie):
 def start(apic_ip, cookie, apic_url, uname, upwd):
 
     # listener for ACI Events (Threading)
-    wss_listener = listener(apic_ip, cookie)
+    wss_listener = listener(apic_ip, cookie, uname, upwd)
 
     wss_listener.start()
 
@@ -169,7 +173,7 @@ def start(apic_ip, cookie, apic_url, uname, upwd):
     subscription_ids = (build_subscription(apic_url, cookie))
 
     # worker to refresh the subscription IDs every 45 seconds (60 default expire)
-    subworker = worker(apic_ip, subscription_ids,cookie, uname,upwd)
+    subworker = worker(apic_ip, subscription_ids,cookie)
 
     subworker.start()
 

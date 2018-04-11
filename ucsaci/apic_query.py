@@ -1,7 +1,7 @@
 from __future__ import absolute_import, division, print_function
 from builtins import *
 
-from db import get_clusterip
+from db import get_clusterinfo
 
 import requests
 
@@ -203,6 +203,9 @@ def get_constructs(apic_ip, auth_token, event):
     vmm_dn = event['fvRsDomAtt']['attributes']['tDn']
     print('The following VMM was modified: ' + vmm_dn)
 
+    vlans = get_vlans(apic_ip, auth_token, epg_dn, vmm_dn)
+    print('The following VLAN(s) will be added the UCS Cluster(s) ', vlans)
+
     ave_verify = get_aveinfo(vmm_dn, apic_ip,auth_token)
 
     if ave_verify is 'Y':
@@ -215,18 +218,20 @@ def get_constructs(apic_ip, auth_token, event):
 
     for l in lpg_name:
 
-        value = get_clusterip(l)
+        value = get_clusterinfo(l)
 
         if value != None:
 
-            ucs_cluster_ip.append(str(value['ip']))
+            print(value)
+
+            print(value['members']['node1']['ip'])
+
+            ucs_cluster_ip.append(str(value['ip']),str(value['members']['node1']['ip']),str(value['members']['node2']['ip']))
 
     print('The follwoing UCS clusters will be configured ', ucs_cluster_ip)
 
-    vlans = get_vlans(apic_ip,auth_token,epg_dn,vmm_dn)
-    print('The following VLAN(s) will be added the UCS Cluster(s) ', vlans)
 
-
+    get_esxservers(apic_ip,auth_token,vmm_dn)
 
 
 def get_aveinfo(vmm_dn, apic_ip, auth_token):
@@ -234,11 +239,11 @@ def get_aveinfo(vmm_dn, apic_ip, auth_token):
 
     url = 'https://' + apic_ip + '/api/node/mo/' + vmm_dn + '.json?query-target=self'
 
-    print(url)
+    # print(url)
 
     aep = json_get(url, auth_token)
 
-    print(aep)
+    # print(aep)
 
     if aep:
 
@@ -251,3 +256,56 @@ def get_aveinfo(vmm_dn, apic_ip, auth_token):
             else:
 
                 return 'N'
+
+
+def get_esxservers(apic_ip, auth_token, vmm_dn):
+
+    ctrlr_dom = get_compctrlrdn(apic_ip,auth_token,vmm_dn)
+
+    url = 'https://' + apic_ip + '/api/node/mo/' + ctrlr_dom + '.json?query-target=children&target-subtree-class=compHv'
+
+    servers = json_get(url, auth_token)
+
+    if servers:
+
+        for s in servers['imdata']:
+
+            print('The following server: ' + s['compHv']['attributes']['dn'] + ' is connected via: ' + str(get_ifId(apic_ip,auth_token,s['compHv']['attributes']['dn'])))
+
+
+def get_compctrlrdn(apic_ip,auth_token, vmm_dn ):
+
+    index = vmm_dn.find('dom-')
+
+    vmm_domname = str((vmm_dn)[index + 4:])
+
+    url = 'https://' + apic_ip + '/api/node/class/compCtrlr.json?query-target-filter=and(eq(compCtrlr.domName,"' + vmm_domname + '"))'
+
+    ctrlrdn = json_get(url, auth_token)
+
+
+    if ctrlrdn:
+
+
+        for i in ctrlrdn['imdata']:
+
+            return i['compCtrlr']['attributes']['dn']
+
+
+def get_ifId(apic_ip, auth_token, server_dn):
+
+    ifids = []
+
+    url = 'https://' + apic_ip + '/api/node/mo/' + server_dn + '.json?query-target=children&target-subtree-class=hvsAdj'
+
+    hvsAdjs = json_get(url, auth_token)
+
+    if hvsAdjs:
+
+        for i in hvsAdjs['imdata']:
+
+            ifids.append(i['hvsAdj']['attributes']['ifId'])
+
+    print(ifids)
+
+    return ifids

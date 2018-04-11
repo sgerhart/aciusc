@@ -30,7 +30,7 @@ def getClusterInfo(cookie, ucsm_ip):
     mgmtlist = []
     cluster = {}
 
-    # Mongo DB Lookup first to see if matrix was created, then build new or modify old
+    # Action Item - Mongo DB Lookup first to see if matrix was created, then build new or modify old
 
     systemClassURL = '<configResolveClass cookie="' + cookie + '" classId="topSystem" inHierarchical="false"> </configResolveClass>'
 
@@ -58,4 +58,10 @@ def getClusterInfo(cookie, ucsm_ip):
         cluster[nodelist['id']]={'ip': nodelist['oobIfIp'] , 'mac': nodelist['oobIfMac'] , 'role': mgmtlist['leadership']}
 
     return cluster
+
+def getdcxVif(cookie, ucsm_ip, ifids):
+
+    pass
+
+    dcxVifClassURL = '<configResolveClass cookie="' + cookie + '" inHierarchical="false" classId="dcxVIf"><inFilter><eq class="dcxVIf" property="id" value="' + ifids + '" /></inFilter> </configResolveClass>'
 
