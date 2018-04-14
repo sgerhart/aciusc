@@ -146,8 +146,6 @@ def get_accgrppol(apic_ip, dom_url, auth_token, aaep):
 
     url = 'https://' + apic_ip + '/api/node/mo/' + dom_url + '/attentpcont-' + aaep + '.json?query-target=children&target-subtree-class=vmmAccGrpCont'
 
-    # print(url)
-
     aep = json_get(url, auth_token)
 
     if aep:
@@ -191,7 +189,8 @@ def get_constructs(apic_ip, auth_token, event):
 
     vlans = {}
 
-    ucs_cluster_ip = []
+    node_ips = []
+
 
     index_dn = event['fvRsDomAtt']['attributes']['dn'].index('/rsdom')
 
@@ -220,22 +219,23 @@ def get_constructs(apic_ip, auth_token, event):
 
         value = get_clusterinfo(l)
 
-        if value != None:
+        if value is not None:
 
-            print(value)
+            node_ips.append(value['members']['node1']['ip'])
+            node_ips.append(value['members']['node2']['ip'])
 
-            print(value['members']['node1']['ip'])
+            ucs_cluster_ip = (str(value['ip']))
 
-            ucs_cluster_ip.append(str(value['ip']),str(value['members']['node1']['ip']),str(value['members']['node2']['ip']))
+            print('The following UCS clusters will be configured ', ucs_cluster_ip)
 
-    print('The follwoing UCS clusters will be configured ', ucs_cluster_ip)
+            veths = get_esxservers(apic_ip,auth_token,vmm_dn, node_ips)
+
+            print('The following Veths/MAC pairs will be modified ', veths)
 
 
-    get_esxservers(apic_ip,auth_token,vmm_dn)
 
 
 def get_aveinfo(vmm_dn, apic_ip, auth_token):
-
 
     url = 'https://' + apic_ip + '/api/node/mo/' + vmm_dn + '.json?query-target=self'
 
@@ -258,7 +258,9 @@ def get_aveinfo(vmm_dn, apic_ip, auth_token):
                 return 'N'
 
 
-def get_esxservers(apic_ip, auth_token, vmm_dn):
+def get_esxservers(apic_ip, auth_token, vmm_dn, node_ips):
+
+    server_inter = []
 
     ctrlr_dom = get_compctrlrdn(apic_ip,auth_token,vmm_dn)
 
@@ -270,7 +272,14 @@ def get_esxservers(apic_ip, auth_token, vmm_dn):
 
         for s in servers['imdata']:
 
-            print('The following server: ' + s['compHv']['attributes']['dn'] + ' is connected via: ' + str(get_ifId(apic_ip,auth_token,s['compHv']['attributes']['dn'])))
+            ifids = get_ifId(apic_ip,auth_token,s['compHv']['attributes']['dn'],node_ips)
+
+            if len(ifids) >= 1:
+
+                # server_inter[str(s['compHv']['attributes']['dn'])] = ifids
+                server_inter.append(ifids)
+
+    return server_inter
 
 
 def get_compctrlrdn(apic_ip,auth_token, vmm_dn ):
@@ -286,26 +295,48 @@ def get_compctrlrdn(apic_ip,auth_token, vmm_dn ):
 
     if ctrlrdn:
 
-
         for i in ctrlrdn['imdata']:
 
             return i['compCtrlr']['attributes']['dn']
 
 
-def get_ifId(apic_ip, auth_token, server_dn):
+def get_ifId(apic_ip, auth_token, server_dn, nodes_ips):
 
-    ifids = []
+    ifids = {}
 
-    url = 'https://' + apic_ip + '/api/node/mo/' + server_dn + '.json?query-target=children&target-subtree-class=hvsAdj'
+    hvs = ''
 
-    hvsAdjs = json_get(url, auth_token)
+    mac = ''
 
-    if hvsAdjs:
+    for n in nodes_ips:
 
-        for i in hvsAdjs['imdata']:
+        url = 'https://' + apic_ip + '/api/node/mo/' + server_dn + '.json?query-target=children&target-subtree-class=hvsAdj&rsp-subtree-include=relations&query-target-filter=and(eq(hvsAdj.nbrKey,"' + n + '"))'
 
-            ifids.append(i['hvsAdj']['attributes']['ifId'])
+        hvsAdjs = json_get(url, auth_token)
 
-    print(ifids)
+        # print(hvsAdjs)
+
+        if hvsAdjs:
+
+            for h in hvsAdjs['imdata']:
+
+                try:
+
+                    if 'compHpNic' in h:
+
+                        mac = str(h['compHpNic']['attributes']['mac'])
+
+                    elif 'hvsAdj' in h:
+
+                        hvs = str(h['hvsAdj']['attributes']['ifId'])
+
+                except Exception as e:
+
+                    # print(e)
+
+                    pass
+
+            ifids[hvs] = mac
 
     return ifids
+

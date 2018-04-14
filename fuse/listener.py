@@ -11,6 +11,7 @@ from apic_auth import apic_auth
 from apic_query import build_subscription, refresh_subscription,refresh_apic,get_constructs
 from ucsm_build import clustermatrix
 
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # This class is used for refreshing the subscriptions
 class worker(threading.Thread):
@@ -47,7 +48,13 @@ class listener(threading.Thread):
    def run(self):
 
         # print "Starting " + self.name
-        get_subscription(self.apic_ip, self.cookie, self.uname,self.upwd)
+        try:
+
+            get_subscription(self.apic_ip, self.cookie, self.uname,self.upwd)
+
+        except Exception as e:
+
+            print(e)
 
 
 # Used to refresh the subscriptions - Called by the worker thread
@@ -114,7 +121,7 @@ def get_subscription(apic_ip, cookie, uname, upwd):
 
         url = 'wss://' + apic_ip + '/socket' + cookie['APIC-Cookie']
 
-        ws = create_connection(url, sslopt={"cert_reqs": ssl.CERT_NONE})
+        ws = create_connection(url, sslopt={"cert_reqs": ssl.CERT_NONE, })
 
         while True:
 
@@ -125,13 +132,26 @@ def get_subscription(apic_ip, cookie, uname, upwd):
 
                 if 'fvRsDomAtt' in i:
 
-                    # print('fvRsDomAtt', i)
-
                     s = 'vmmp-VMware'
 
                     try:
 
-                        if str(i['fvRsDomAtt']['attributes']['tDn']).find(s) and str(i['fvRsDomAtt']['attributes']['status']) == 'created':
+                        if str(i['fvRsDomAtt']['attributes']['status']) == 'deleted':
+
+                            if refreshed_token == '':
+
+                                print("Delete Event Detected")
+
+                                # print(i)
+
+                            else:
+
+                                print("Delete Event Detected")
+
+                                # print(i)
+
+
+                        elif str(i['fvRsDomAtt']['attributes']['tDn']).find(s) and str(i['fvRsDomAtt']['attributes']['status']) == 'created':
 
                             if refreshed_token == '':
 
@@ -145,11 +165,12 @@ def get_subscription(apic_ip, cookie, uname, upwd):
 
                                 get_constructs(apic_ip, refreshed_token, i)
 
+
                     except Exception as e:
 
-                        # print(e)
+                      # print(e)
 
-                        pass
+                      pass
 
 
                 if 'fvRsPathAtt' in i:

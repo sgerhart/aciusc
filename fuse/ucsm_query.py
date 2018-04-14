@@ -65,3 +65,6 @@ def getdcxVif(cookie, ucsm_ip, ifids):
 
     dcxVifClassURL = '<configResolveClass cookie="' + cookie + '" inHierarchical="false" classId="dcxVIf"><inFilter><eq class="dcxVIf" property="id" value="' + ifids + '" /></inFilter> </configResolveClass>'
 
+def createVlans():
+
+    pass
