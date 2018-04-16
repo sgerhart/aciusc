@@ -6,7 +6,7 @@ import time
 
 
 from datetime import datetime
-from websocket import WebSocket, create_connection, WebSocketApp
+import websocket
 from apic_auth import apic_auth
 from apic_query import build_subscription, refresh_subscription,refresh_apic,get_constructs
 from ucsm_build import clustermatrix
@@ -129,11 +129,37 @@ def get_subscription():
 
         # print('In get_subscription')
 
-        ws = WebSocketApp(url, on_message = on_message, on_error = on_error, on_close = on_close)
-        ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+        try:
+
+            ws = websocket.WebSocketApp(url,
+                                        on_message=on_message,
+                                        on_error=on_error,
+                                        on_close=on_close)
+            # ws.on_open = on_open
+            ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+
+        except websocket.WebSocketException as e:
+            print ("WebSocketException: Failed to recreate connection to host, please ensure network connection to host: " + url)
+            print(e)
+        except websocket.WebSocketConnectionClosedException as e:
+            print ("WebSocketConnectionClosedException:Failed to recreate connection to host, please ensure network connection to host: " +
+                url)
+            print(e)
+
+        except websocket.WebSocketTimeoutException as e:
+            print ("WebSocketTimeoutException: Failed to recreate connection to host, please ensure network connection to host: " +
+                url)
+            print(e)
+
+        except Exception as e:
+            print ("Exception: Failed to recreate connection to host, please ensure network connection to host: " + url)
+            print(e)
+
 
 
 def on_message(ws, message):
+
+    print('++++++ ' + message + ' +++++++')
 
     result = json.loads(message)
 
@@ -158,7 +184,6 @@ def on_message(ws, message):
                         print("Delete Event Detected")
 
                         # print(i)
-
 
                 elif str(i['fvRsDomAtt']['attributes']['tDn']).find(s) and str(
                         i['fvRsDomAtt']['attributes']['status']) == 'created':
