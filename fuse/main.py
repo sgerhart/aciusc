@@ -15,6 +15,7 @@ def main(inargs):
     uuser = inargs.uuser
     upwd = inargs.upwd
 
+
     apic_url = 'https://' + apic_ip + '/api/'
 
     clustermatrix(uuser, upwd, auth_token, apic_ip)
