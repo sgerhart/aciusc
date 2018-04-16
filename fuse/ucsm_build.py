@@ -13,6 +13,7 @@ from apic_query import get_protpathdn, get_loosenodes
 
 def clustermatrix(user, pwd, apicauth, apic_ip):
 
+
     loosenodes = get_loosenodes(apic_ip, apicauth)
 
     dbconn = dbconnect()
