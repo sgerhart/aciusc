@@ -6,7 +6,7 @@ import time
 
 
 from datetime import datetime
-from websocket import WebSocket, create_connection
+from websocket import WebSocket, create_connection, WebSocketApp
 from apic_auth import apic_auth
 from apic_query import build_subscription, refresh_subscription,refresh_apic,get_constructs
 from ucsm_build import clustermatrix
@@ -20,7 +20,7 @@ class worker(threading.Thread):
 
       threading.Thread.__init__(self)
       self.subids = subscript_ids
-      self.apic_ip = apic_ip
+      # self.apic_ip = apic_ip
       self.token = token
       #self.uname = uname
       #self.upwd = upwd
@@ -30,27 +30,33 @@ class worker(threading.Thread):
 
        # refresh_subs(self.apic_ip, self.subids, self.token, self.uname, self.upwd)
 
-       refresh_subs(self.apic_ip, self.subids, self.token)
+       # refresh_subs(self.apic_ip, self.subids, self.token)
+       refresh_subs(self.subids, self.token)
 
 
 # This class is used for the getting the subscriptions - websocket
 class listener(threading.Thread):
 
-   def __init__(self, apic_ip, cookie,uname, upwd):
+   # def __init__(self, apic_ip, cookie,uname, upwd):
+   def __init__(self):
+
 
         threading.Thread.__init__(self)
-        self.apic_ip = apic_ip
-        self.cookie = cookie
+        # self.apic_ip = apic_ip
+        # self.cookie = cookie
         self.name = "Testing Listener"
-        self.uname = uname
-        self.upwd = upwd
+        # self.uname = uname
+        # self.upwd = upwd
+
+
 
    def run(self):
 
         # print "Starting " + self.name
         try:
 
-            get_subscription(self.apic_ip, self.cookie, self.uname,self.upwd)
+            # get_subscription(self.apic_ip, self.cookie, self.uname,self.upwd)
+            get_subscription()
 
         except Exception as e:
 
@@ -58,7 +64,8 @@ class listener(threading.Thread):
 
 
 # Used to refresh the subscriptions - Called by the worker thread
-def refresh_subs(apic_ip, subids, token):
+#def refresh_subs(apic_ip, subids, token):
+def refresh_subs(subids, token):
 
     global refreshed_token
     global refreshed
@@ -80,12 +87,12 @@ def refresh_subs(apic_ip, subids, token):
         if refreshed_token == '':
 
             print("Refreshing Subscriptions with Original Token")
-            refresh_subscription(apic_ip, subids, token)
+            refresh_subscription(apicip, subids, token)
 
         else:
 
             print("Refreshing Subscriptions with Refreshed_Token")
-            refresh_subscription(apic_ip, subids, refreshed_token)
+            refresh_subscription(apicip, subids, refreshed_token)
 
         if min == 10:
 
@@ -93,7 +100,7 @@ def refresh_subs(apic_ip, subids, token):
 
             if new_token == '':
 
-                new_token = refresh_apic(apic_ip,token)
+                new_token = refresh_apic(apicip,token)
 
                 min = 0
 
@@ -101,7 +108,7 @@ def refresh_subs(apic_ip, subids, token):
 
             else:
 
-                new_token = refresh_apic(apic_ip, refreshed_token)
+                new_token = refresh_apic(apicip, refreshed_token)
 
                 min = 0
 
@@ -115,75 +122,98 @@ def refresh_subs(apic_ip, subids, token):
         # print(refreshed_token)
 
 # Opens up a websocket for subscription events (vpcIf, fabricLooseNode, fvRsDomAtt) This is called by the listener class
-def get_subscription(apic_ip, cookie, uname, upwd):
+# def get_subscription(apic_ip, cookie, uname, upwd):
+def get_subscription():
 
-        settest = set({})
+        url = 'wss://' + apicip + '/socket' + token['APIC-Cookie']
 
-        url = 'wss://' + apic_ip + '/socket' + cookie['APIC-Cookie']
+        # print('In get_subscription')
 
-        ws = create_connection(url, sslopt={"cert_reqs": ssl.CERT_NONE, })
-
-        while True:
-
-            event = ws.recv()
-            result = json.loads(event)
-
-            for i in result['imdata']:
-
-                if 'fvRsDomAtt' in i:
-
-                    s = 'vmmp-VMware'
-
-                    try:
-
-                        if str(i['fvRsDomAtt']['attributes']['status']) == 'deleted':
-
-                            if refreshed_token == '':
-
-                                print("Delete Event Detected")
-
-                                # print(i)
-
-                            else:
-
-                                print("Delete Event Detected")
-
-                                # print(i)
+        ws = WebSocketApp(url, on_message = on_message, on_error = on_error, on_close = on_close)
+        ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
 
 
-                        elif str(i['fvRsDomAtt']['attributes']['tDn']).find(s) and str(i['fvRsDomAtt']['attributes']['status']) == 'created':
+def on_message(ws, message):
 
-                            if refreshed_token == '':
+    result = json.loads(message)
 
-                                print("Create Event Detected")
+    for i in result['imdata']:
 
-                                get_constructs(apic_ip,cookie,i)
+        if 'fvRsDomAtt' in i:
 
-                            else:
+            s = 'vmmp-VMware'
 
-                                print("Create Event Detected")
+            try:
 
-                                get_constructs(apic_ip, refreshed_token, i)
+                if str(i['fvRsDomAtt']['attributes']['status']) == 'deleted':
+
+                    if refreshed_token == '':
+
+                        print("Delete Event Detected")
+
+                        # print(i)
+
+                    else:
+
+                        print("Delete Event Detected")
+
+                        # print(i)
 
 
-                    except Exception as e:
+                elif str(i['fvRsDomAtt']['attributes']['tDn']).find(s) and str(
+                        i['fvRsDomAtt']['attributes']['status']) == 'created':
 
-                      # print(e)
+                    if refreshed_token == '':
 
-                      pass
+                        print("Create Event Detected")
+
+                        get_constructs(apicip, token, i)
+
+                    else:
+
+                        print("Create Event Detected")
+
+                        get_constructs(apicip, refreshed_token, i)
 
 
-                if 'fvRsPathAtt' in i:
+            except Exception as e:
 
-                    # print(i)
+                # print(e)
 
-                    pass
+                pass
+
+        if 'fvRsPathAtt' in i:
+            # print(i)
+
+            pass
+
+
+def on_error(ws, error):
+
+    print(error)
+
+
+def on_close(ws):
+
+    print("### closed ###")
 
 
 def start(apic_ip, cookie, apic_url, uname, upwd):
 
+    global apicip
+    global token
+    global ucsname
+    global ucspwd
+
+    apicip = apic_ip
+    token = cookie
+    ucsname = uname
+    ucspwd = upwd
+
+
     # listener for ACI Events (Threading)
-    wss_listener = listener(apic_ip, cookie, uname, upwd)
+    #wss_listener = listener(apic_ip, cookie, uname, upwd)
+    wss_listener = listener()
 
     wss_listener.start()
 
