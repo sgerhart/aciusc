@@ -6,20 +6,23 @@ from db import get_clusterinfo
 import requests
 
 
-
 def json_get(url, auth_token):
 
     try:
 
         response = requests.get(url, cookies=auth_token, verify=False)
 
-        response.raise_for_status()
+        # response.raise_for_status()
 
         return response.json()
 
     except requests.exceptions.RequestException as e:
 
         print("http error: ", e)
+
+    except requests.exceptions.ConnectionError as e:
+
+        print("There is a connection issue: ", e)
 
 
 def refresh_apic(apic_ip,auth_token):
@@ -64,7 +67,7 @@ def refresh_subscription(apic_ip, ids,auth_token):
 
         # print(url)
 
-        json_get(url, auth_token)
+        print(json_get(url, auth_token))
 
 
 def get_protpathdn(apic_ip, node_ips, auth_token):
