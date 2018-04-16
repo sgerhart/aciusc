@@ -57,6 +57,7 @@ def getClusterInfo(cookie, ucsm_ip):
 
         cluster[nodelist['id']]={'ip': nodelist['oobIfIp'] , 'mac': nodelist['oobIfMac'] , 'role': mgmtlist['leadership']}
 
+
     return cluster
 
 def getdcxVif(cookie, ucsm_ip, ifids):
