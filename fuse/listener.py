@@ -1,5 +1,6 @@
 
 import threading
+import thread
 import json
 import ssl
 import time
@@ -60,6 +61,7 @@ class listener(threading.Thread):
 
         except Exception as e:
 
+            print('This is in RUN')
             print(e)
 
 
@@ -136,7 +138,7 @@ def get_subscription():
                                         on_error=on_error,
                                         on_close=on_close)
             # ws.on_open = on_open
-            ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+            ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE}, ping_interval=70, ping_timeout=10)
 
         except websocket.WebSocketException as e:
             print ("WebSocketException: Failed to recreate connection to host, please ensure network connection to host: " + url)
@@ -215,6 +217,7 @@ def on_message(ws, message):
 
 def on_error(ws, error):
 
+    print('######' + error + '######')
     print(error)
 
 
@@ -254,7 +257,6 @@ def start(apic_ip, cookie, apic_url, uname, upwd):
     subworker.start()
 
     time.sleep(60)
-
 
 refreshed_token = ''
 
