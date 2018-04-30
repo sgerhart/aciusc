@@ -1,6 +1,5 @@
 
 import threading
-import thread
 import json
 import ssl
 import time
@@ -8,39 +7,38 @@ import time
 
 from datetime import datetime
 import websocket
-from apic_auth import apic_auth
-from apic_query import build_subscription, refresh_subscription,refresh_apic,get_constructs
+from apic_query import build_subscription, refresh_subscription,refresh_apic, vmmconstructs
 from ucsm_build import clustermatrix
 
 ssl._create_default_https_context = ssl._create_unverified_context
+
 
 # This class is used for refreshing the subscriptions
 class worker(threading.Thread):
 
    def __init__(self, apic_ip, subscript_ids, token):
 
-      threading.Thread.__init__(self)
-      self.subids = subscript_ids
-      # self.apic_ip = apic_ip
-      self.token = token
-      #self.uname = uname
-      #self.upwd = upwd
+       threading.Thread.__init__(self)
+       self.subids = subscript_ids
+       # self.apic_ip = apic_ip
+       self.token = token
+       #self.uname = uname
+       #self.upwd = upwd
 
 
    def run(self):
 
-       # refresh_subs(self.apic_ip, self.subids, self.token, self.uname, self.upwd)
+        # refresh_subs(self.apic_ip, self.subids, self.token, self.uname, self.upwd)
 
-       # refresh_subs(self.apic_ip, self.subids, self.token)
-       refresh_subs(self.subids, self.token)
+        # refresh_subs(self.apic_ip, self.subids, self.token)
+        refresh_subs(self.subids, self.token)
 
 
 # This class is used for the getting the subscriptions - websocket
 class listener(threading.Thread):
 
-   # def __init__(self, apic_ip, cookie,uname, upwd):
-   def __init__(self):
-
+    # def __init__(self, apic_ip, cookie,uname, upwd):
+    def __init__(self):
 
         threading.Thread.__init__(self)
         # self.apic_ip = apic_ip
@@ -49,9 +47,7 @@ class listener(threading.Thread):
         # self.uname = uname
         # self.upwd = upwd
 
-
-
-   def run(self):
+    def run(self):
 
         # print "Starting " + self.name
         try:
@@ -61,7 +57,7 @@ class listener(threading.Thread):
 
         except Exception as e:
 
-            print('This is in RUN')
+            # print('This is in RUN')
             print(e)
 
 
@@ -80,20 +76,20 @@ def refresh_subs(subids, token):
 
         time.sleep(45)
 
-        print(str(datetime.now()))
+        # print(str(datetime.now()))
 
-        #print('refreshing')
+        # print('refreshing')
 
-        #print(refreshed_token)
+        # print(refreshed_token)
 
         if refreshed_token == '':
 
-            print("Refreshing Subscriptions with Original Token")
+            # print("Refreshing Subscriptions with Original Token")
             refresh_subscription(apicip, subids, token)
 
         else:
 
-            print("Refreshing Subscriptions with Refreshed_Token")
+            # print("Refreshing Subscriptions with Refreshed_Token")
             refresh_subscription(apicip, subids, refreshed_token)
 
         if min == 10:
@@ -106,7 +102,7 @@ def refresh_subs(subids, token):
 
                 min = 0
 
-                # clustermatrix(uname,upwd,new_token,apic_ip)
+                clustermatrix(ucsname,ucspwd,new_token,apicip)
 
             else:
 
@@ -114,7 +110,7 @@ def refresh_subs(subids, token):
 
                 min = 0
 
-                # clustermatrix(uname, upwd, new_token, apic_ip)
+                clustermatrix(ucsname, ucspwd, new_token, apicip)
         else:
 
             min += 1
@@ -122,6 +118,7 @@ def refresh_subs(subids, token):
         refreshed_token = new_token
 
         # print(refreshed_token)
+
 
 # Opens up a websocket for subscription events (vpcIf, fabricLooseNode, fvRsDomAtt) This is called by the listener class
 # def get_subscription(apic_ip, cookie, uname, upwd):
@@ -161,7 +158,7 @@ def get_subscription():
 
 def on_message(ws, message):
 
-    print('++++++ ' + message + ' +++++++')
+    # print('++++++ ' + message + ' +++++++')
 
     result = json.loads(message)
 
@@ -194,13 +191,13 @@ def on_message(ws, message):
 
                         print("Create Event Detected")
 
-                        get_constructs(apicip, token, i)
+                        vmmconstructs(apicip, token, i)
 
                     else:
 
                         print("Create Event Detected")
 
-                        get_constructs(apicip, refreshed_token, i)
+                        vmmconstructs(apicip, refreshed_token, i)
 
 
             except Exception as e:
@@ -213,6 +210,44 @@ def on_message(ws, message):
             # print(i)
 
             pass
+
+        if 'fvAEPg' in i:
+
+            try:
+
+                if str(i['fvAEPg']['attributes']['status']) == 'modified' and str(
+                        i['fvAEPg']['attributes']['pcEnfPref']) == 'enforced':
+
+                    if refreshed_token == '':
+
+                        print("Intra-EPG Segmenation Enforced")
+
+                        vmmconstructs(apicip, token, i)
+
+                    else:
+
+                        print("Intra-EPG Segmenation Enforced")
+
+                        vmmconstructs(apicip, refreshed_token, i)
+
+                elif str(i['fvAEPg']['attributes']['status']) == 'modified' and str(
+                        i['fvAEPg']['attributes']['pcEnfPref']) == 'unenforced':
+
+                    if refreshed_token == '':
+
+                        print("Intra-EPG Segmenation UnEnforced")
+
+                        vmmconstructs(apicip, token, i)
+
+                    else:
+
+                        print("Intra-EPG Segmenation UnEnforced")
+
+                        vmmconstructs(apicip, refreshed_token, i)
+
+            except Exception as e:
+
+                pass
 
 
 def on_error(ws, error):
