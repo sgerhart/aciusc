@@ -1,11 +1,12 @@
 from __future__ import absolute_import, division, print_function
 from builtins import *
 
-from db import get_clusterinfo
+from dbaccess import get_clusterinfo, buildvlanrecord, del_vlanrecord, get_vlanrecord
 
 import requests
 
 
+# Generic requests for REST Gets (FUSE is read only to ACI)
 def json_get(url, auth_token):
 
     try:
@@ -25,6 +26,8 @@ def json_get(url, auth_token):
         print("There is a connection issue: ", e)
 
 
+
+# Refresh APICs Token
 def refresh_apic(apic_ip,auth_token):
 
     apic_url = 'https://' + apic_ip + '/api/aaaRefresh.json'
@@ -38,6 +41,7 @@ def refresh_apic(apic_ip,auth_token):
         return {'APIC-Cookie': token}
 
 
+# Build subscriptions for WebSocket
 def build_subscription(url, auth_token):
 
     sub_ids = []
@@ -47,8 +51,9 @@ def build_subscription(url, auth_token):
     lnode_subscr_url = url + 'class/fabricLooseNode.json?subscription=yes'
     dom_subscr_url = url + 'class/fvRsDomAtt.json?subscription=yes'
     rvRsPath_url = url + 'class/fvRsPathAtt.json?subscription=yes'
+    fvAEPg_url = url + 'class/fvAEPg.json?subscription=yes'
 
-    url_subscr = {rvRsPath_url, lnode_subscr_url, dom_subscr_url}
+    url_subscr = {rvRsPath_url, lnode_subscr_url, dom_subscr_url, fvAEPg_url}
 
     for u in url_subscr:
 
@@ -59,6 +64,7 @@ def build_subscription(url, auth_token):
     return sub_ids
 
 
+# Refresh subscriptions
 def refresh_subscription(apic_ip, ids,auth_token):
 
     for i in ids:
@@ -67,9 +73,11 @@ def refresh_subscription(apic_ip, ids,auth_token):
 
         # print(url)
 
-        print(json_get(url, auth_token))
+        json_get(url, auth_token)
 
 
+# This gets the protPathDN which provides the leafs and the interface policy group
+# Could also query the protPathDN which will provide you interface policy group with the Property 'name'
 def get_protpathdn(apic_ip, node_ips, auth_token):
 
     i = 0
@@ -104,6 +112,7 @@ def get_protpathdn(apic_ip, node_ips, auth_token):
     return pathdns
 
 
+# Find the Fabric Interconnects that are directly connected to ACI
 def get_loosenodes(apic_ip, auth_token):
 
     nodes = []
@@ -159,15 +168,14 @@ def get_accgrppol(apic_ip, dom_url, auth_token, aaep):
 
     return lgp_name
 
-def get_vlans(apic_ip, auth_token, epg_dn, vmm_dn):
+
+def get_vlans(apic_ip, auth_token, epg_dn, vmm_dn, vmmstatic):
 
     vlans = {}
 
     url = 'https://' + apic_ip + '/api/node/mo/' + vmm_dn + '.json?query-target=children&target-subtree-class=vmmEpPD'
 
     dn = json_get(url, auth_token)
-
-    # print(epg_dn)
 
     if dn:
 
@@ -185,27 +193,36 @@ def get_vlans(apic_ip, auth_token, epg_dn, vmm_dn):
                     vlans['primary'] = str(i['vmmEpPD']['attributes']['primaryEncap'])
                     vlans['Secondary'] = str(i['vmmEpPD']['attributes']['encap'])
 
-
         return vlans
 
-def get_constructs(apic_ip, auth_token, event):
 
-    vlans = {}
+def vmmconstructs(apic_ip, auth_token, event):
 
     node_ips = []
+    epg_dn = ''
+    vmm_dn = ''
+    vlans = {}
 
+    if 'fvRsDomAtt' in event:
 
-    index_dn = event['fvRsDomAtt']['attributes']['dn'].index('/rsdom')
+        index_dn = event['fvRsDomAtt']['attributes']['dn'].index('/rsdom')
 
-    # Provides the dn for the EPG path, so that you can query to determine the encap (vlan) used
-    epg_dn = event['fvRsDomAtt']['attributes']['dn'][0: index_dn]
-    print('The following EPG modified: ' + epg_dn)
+        # Provides the dn for the EPG path, so that you can query to determine the encap (vlan) used
+        epg_dn = event['fvRsDomAtt']['attributes']['dn'][0: index_dn]
+        print('The following EPG modified: ' + epg_dn)
 
-    # Provides the VMM that was modified - The EPG and VMM will be used to find the VLANs, VNICs to be modified
-    vmm_dn = event['fvRsDomAtt']['attributes']['tDn']
-    print('The following VMM was modified: ' + vmm_dn)
+        # Provides the VMM that was modified - The EPG and VMM will be used to find the VLANs, VNICs to be modified
+        vmm_dn = event['fvRsDomAtt']['attributes']['tDn']
+        print('The following VMM was modified: ' + vmm_dn)
 
-    vlans = get_vlans(apic_ip, auth_token, epg_dn, vmm_dn)
+    # Need to finish - This is for if change was made to EPG for Intra-EPG isolation
+    elif 'fvAEPg' in event:
+
+        epg_dn = event['fvAEPg']['attributes']['dn']
+
+        return
+
+    vlans = get_vlans(apic_ip, auth_token, epg_dn, vmm_dn, 'vmm')
     print('The following VLAN(s) will be added the UCS Cluster(s) ', vlans)
 
     ave_verify = get_aveinfo(vmm_dn, apic_ip,auth_token)
@@ -214,9 +231,8 @@ def get_constructs(apic_ip, auth_token, event):
 
         print('AVE is currently not supported')
 
-
-    aentityp = get_attachEnityP(apic_ip, str(event['fvRsDomAtt']['attributes']['tDn']), auth_token)
-    lpg_name = get_accgrppol(apic_ip, str(event['fvRsDomAtt']['attributes']['tDn']), auth_token, aentityp)
+    aentityp = get_attachEnityP(apic_ip, str(vmm_dn), auth_token)
+    lpg_name = get_accgrppol(apic_ip, str(vmm_dn), auth_token, aentityp)
 
     for l in lpg_name:
 
@@ -231,10 +247,30 @@ def get_constructs(apic_ip, auth_token, event):
 
             print('The following UCS clusters will be configured ', ucs_cluster_ip)
 
-            veths = get_esxservers(apic_ip,auth_token,vmm_dn, node_ips)
+            srv_info = get_esxservers(apic_ip,auth_token,vmm_dn, node_ips)
 
-            print('The following Veths/MAC pairs will be modified ', veths)
+            for key, value in srv_info.items():
 
+                buildvlanrecord(epg_dn,vmm_dn, vlans, ucs_cluster_ip, key, value, 'vmm')
+
+
+def remove_vmmcontructs(apic_ip, auth_token, event):
+
+    # Get index to get epg out of the event
+    epg_index_dn = event['fvRsDomAtt']['attributes']['dn'].index('/rsdom')
+
+    # Provides the dn for the EPG path, so that you can query to determine the encap (vlan) used
+    epg_dn = event['fvRsDomAtt']['attributes']['dn'][0: epg_index_dn]
+
+    # Get index to get vmm domain
+    vmm_index_value = str(event['fvRsDomAtt']['attributes']['dn']).index('[')
+    vmm_index_value_end = str(event['fvRsDomAtt']['attributes']['dn']).index(']')
+
+    vmm_name = event['fvRsDomAtt']['attributes']['dn'][vmm_index_value + 1:vmm_index_value_end]
+
+    print(get_vlanrecord(epg_dn,vmm_name))
+
+    del_vlanrecord(epg_dn,vmm_name)
 
 
 
@@ -242,11 +278,7 @@ def get_aveinfo(vmm_dn, apic_ip, auth_token):
 
     url = 'https://' + apic_ip + '/api/node/mo/' + vmm_dn + '.json?query-target=self'
 
-    # print(url)
-
     aep = json_get(url, auth_token)
-
-    # print(aep)
 
     if aep:
 
@@ -263,7 +295,7 @@ def get_aveinfo(vmm_dn, apic_ip, auth_token):
 
 def get_esxservers(apic_ip, auth_token, vmm_dn, node_ips):
 
-    server_inter = []
+    server_inter = {}
 
     ctrlr_dom = get_compctrlrdn(apic_ip,auth_token,vmm_dn)
 
@@ -279,8 +311,7 @@ def get_esxservers(apic_ip, auth_token, vmm_dn, node_ips):
 
             if len(ifids) >= 1:
 
-                # server_inter[str(s['compHv']['attributes']['dn'])] = ifids
-                server_inter.append(ifids)
+                server_inter[str(s['compHv']['attributes']['dn'])] = ifids
 
     return server_inter
 
@@ -294,7 +325,6 @@ def get_compctrlrdn(apic_ip,auth_token, vmm_dn ):
     url = 'https://' + apic_ip + '/api/node/class/compCtrlr.json?query-target-filter=and(eq(compCtrlr.domName,"' + vmm_domname + '"))'
 
     ctrlrdn = json_get(url, auth_token)
-
 
     if ctrlrdn:
 
@@ -316,8 +346,6 @@ def get_ifId(apic_ip, auth_token, server_dn, nodes_ips):
         url = 'https://' + apic_ip + '/api/node/mo/' + server_dn + '.json?query-target=children&target-subtree-class=hvsAdj&rsp-subtree-include=relations&query-target-filter=and(eq(hvsAdj.nbrKey,"' + n + '"))'
 
         hvsAdjs = json_get(url, auth_token)
-
-        # print(hvsAdjs)
 
         if hvsAdjs:
 
@@ -342,4 +370,14 @@ def get_ifId(apic_ip, auth_token, server_dn, nodes_ips):
             ifids[hvs] = mac
 
     return ifids
+
+
+def buildtopology():
+
+    # Build VMM Topology
+
+    # Build Static Port Topology
+
+    pass
+
 
