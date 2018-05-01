@@ -6,13 +6,12 @@ import time
 from ucs_auth import ucsm_auth
 from ucsm_query import getClusterInfo
 # from pymongo import MongoClient
-from db import dbconnect, dropDB, insertDB
+from dbaccess import dbconnect, dropDB, insertDB
 
 from apic_query import get_protpathdn, get_loosenodes
 
 
 def clustermatrix(user, pwd, apicauth, apic_ip):
-
 
     loosenodes = get_loosenodes(apic_ip, apicauth)
 
@@ -30,9 +29,13 @@ def clustermatrix(user, pwd, apicauth, apic_ip):
 
             nodes = get_protpathdn(apic_ip, [clusteritems['A']['ip'],clusteritems['B']['ip']], apicauth)
 
+            # Get the UCS interfaces that are adjacent to the ACI leaf (Not sure if needed)
+            # adj_intfs = get_adjinterfaces(apic_ip, nodes, apicauth)
+            # 'ip': clusteritems['cluster']['ip'],
+
             cluster = {
                 'name': clusteritems['cluster']['name'],
-                'ip': clusteritems['cluster']['ip'],
+                'ip': '10.87.96.219',
                 'fabapath': nodes['A']['path'],
                 'lpganame': nodes['A']['name'],
                 'fabbpath': nodes['B']['path'],
@@ -60,7 +63,7 @@ def clustermatrix(user, pwd, apicauth, apic_ip):
 
             results = bd.ucscluster.insert_one(cluster)
 
-            # print(results)
+            print('Updated Cluster ' + str(results))
 
 
 
