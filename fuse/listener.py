@@ -7,7 +7,7 @@ import time
 
 from datetime import datetime
 import websocket
-from apic_query import build_subscription, refresh_subscription,refresh_apic, vmmconstructs
+from apic_query import build_subscription, refresh_subscription,refresh_apic, vmmconstructs, remove_vmmcontructs
 from ucsm_build import clustermatrix
 
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -75,12 +75,6 @@ def refresh_subs(subids, token):
     while True:
 
         time.sleep(45)
-
-        # print(str(datetime.now()))
-
-        # print('refreshing')
-
-        # print(refreshed_token)
 
         if refreshed_token == '':
 
@@ -176,13 +170,13 @@ def on_message(ws, message):
 
                         print("Delete Event Detected")
 
-                        # print(i)
+                        remove_vmmcontructs(apicip, token, i)
 
                     else:
 
                         print("Delete Event Detected")
 
-                        # print(i)
+                        remove_vmmcontructs(apicip, refreshed_token, i)
 
                 elif str(i['fvRsDomAtt']['attributes']['tDn']).find(s) and str(
                         i['fvRsDomAtt']['attributes']['status']) == 'created':
