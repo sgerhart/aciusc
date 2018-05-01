@@ -6,6 +6,7 @@ import argparse
 from apic_auth import apic_auth
 from ucsm_build import clustermatrix
 from listener import start
+from apic_query import buildtopology
 
 
 def main(inargs):
@@ -15,11 +16,16 @@ def main(inargs):
     uuser = inargs.uuser
     upwd = inargs.upwd
 
-
     apic_url = 'https://' + apic_ip + '/api/'
 
+    # This builds the UCS cluster matrix from Fabric Interconnects found connected to the ACI Fabric
     clustermatrix(uuser, upwd, auth_token, apic_ip)
 
+    # Placeholder for getting the current vlan, veths, epg and vmm mappings
+    # VMWare Currently and Static
+    # build_topology()
+
+    # This Starts the Threads
     start(apic_ip,auth_token,apic_url, uuser, upwd)
 
 
